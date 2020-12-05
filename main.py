@@ -39,6 +39,7 @@ def wait_for_activation_code(email, password, new_email_threshold = 60, retries 
     return None
 
 def search_code_in_inbox(user_email, password, new_email_threshold):
+    codes = []
     code = None
     imap_object = imaplib.IMAP4_SSL('imap.gmail.com')
     imap_object.login(user_email, password)
@@ -48,13 +49,13 @@ def search_code_in_inbox(user_email, password, new_email_threshold):
         if 'OK' not in status:
             raise Exception('select inbox')
         
-        status, response = imap_object.search(None, '(FROM "FnxNoReplay@fnx.co.il")')
+        status, response = imap_object.search(None, '(UNSEEN FROM "FnxNoReplay@fnx.co.il")')
         if 'OK' not in status:
             raise Exception('search fnx address in inbox')
 
         emails = response[0].decode().split()    
         if not emails:
-            raise Exception('no activation emails found')
+            return None
         
         for num in emails:
             fetch_status, data = imap_object.fetch(num, '(RFC822)')
@@ -69,7 +70,7 @@ def search_code_in_inbox(user_email, password, new_email_threshold):
                 logger.debug('old activation code email found, ignore it (elapsed: {}s) code: {}'.format(elapsed_seconds, re.findall(r' \d+', msg.get_payload(decode=True).decode('utf-8'))))
                 continue
         
-            logger.debug('relevant email may be found, elapsed: {} threshold: {}'.format(elapsed_seconds, new_email_threshold))
+            logger.debug('relevant email may be found, elapsed: {}s threshold: {}s'.format(elapsed_seconds, new_email_threshold))
 
             payload = msg.get_payload(decode=True).decode('utf-8')
             nums = re.findall(r' \d+', payload)
@@ -80,7 +81,7 @@ def search_code_in_inbox(user_email, password, new_email_threshold):
             if code is None:
                 raise Exception('could not find code in email')
 
-            return code.strip()
+            codes.append(code.strip())
                 
     except Exception as e:
         logger.error('failed searching activation code in email, error: {}'.format(e))
@@ -89,7 +90,10 @@ def search_code_in_inbox(user_email, password, new_email_threshold):
         imap_object.close()
         imap_object.logout()
 
-    return None
+    if not codes:
+        return None
+
+    return codes[-1]
 
 def get_verification_token(session, url):   
     r = session.get(url)
