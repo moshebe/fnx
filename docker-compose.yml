@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  fnx:
+    build: .
+    environment: 
+      - FNX_EMAIL=${FNX_EMAIL}
+      - FNX_PASS=${FNX_PASS}
+      - FNX_UID=${FNX_UID}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - VERBOSE=true
