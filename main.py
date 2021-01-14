@@ -102,6 +102,14 @@ def get_verification_token(session, url):
     cookie_token = session.cookies.get_dict()['__RequestVerificationToken_L2ZueA2']
     return csrf_token, cookie_token
 
+def get_field_numeric_value(fields_positions, values, field_name):
+    position = fields_positions[field_name]
+    value = values[position]
+    return int(value.replace(',', ''))
+
+def parse_policy_status(fields_positions, values):
+    return "\n".join(['{} = {}'.format(name, values[index])  for (name, index) in fields_positions.items()])    
+
 def parse_balance(content):
     fields = {
         'balance': 5,
@@ -110,12 +118,33 @@ def parse_balance(content):
         'return': 9
     }
     trs = BeautifulSoup(content, 'html.parser').find_all('tr')
-    if len(trs) < 2:
-        raise Exception('invalid content, expected at least two table rows but got: {}'.format(len(trs)))
-    headers = trs[0].text.splitlines()
-    values = trs[1].text.splitlines()
-
-    return "\n".join(['{} = {}'.format(name, values[index])  for (name, index) in fields.items()])
+    trs_len = len(trs)
+    if trs_len < 2:
+        print(content)
+        raise Exception('invalid content, expected at least two table rows but got: {}'.format(trs_len))
+    
+    if trs_len == 2:
+        return parse_policy_status(fields, trs[1].text.splitlines())
+    
+    result = ''
+    total_balance = 0
+    total_deposits = 0
+    for i in range(1, trs_len):
+        tr = trs[i].text.splitlines()
+        policy_status = parse_policy_status(fields, tr)
+        total_balance += get_field_numeric_value(fields, tr, 'balance')
+        total_deposits += get_field_numeric_value(fields, tr, 'deposits')
+        result += policy_status
+        result += "\n------------------\n"            
+    
+    total_profit = total_balance - total_deposits
+    total_return = (total_profit / total_deposits) * 100
+    return result + f"""Total:
+balance: {total_balance:,}
+deposits: {total_deposits:,}
+profit: {total_profit:,}
+return: {total_return:.2f}%
+"""
 
 def fetch_data(uid, user_email, password):
     session = requests.Session()
@@ -170,7 +199,6 @@ def publish_result(content):
     tg_chat_id = os.environ.get('TELEGRAM_CHAT_ID')
     if not tg_chat_id:
         raise Exception('missing telegram chat id')
-    
     
     res = requests.get("https://api.telegram.org/bot{token}/sendMessage?chat_id={chat}&text={text}".format(token=tg_token, chat=tg_chat_id, text=content))
     if res.status_code != 200:
