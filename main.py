@@ -71,6 +71,10 @@ def search_code_in_inbox(user_email, password, new_email_threshold):
                 continue
         
             logger.debug('relevant email may be found, elapsed: {}s threshold: {}s'.format(elapsed_seconds, new_email_threshold))
+                
+            while msg.is_multipart():
+                logger.debug('message is multiple, entering nesting level')
+                msg = msg.get_payload(0)
 
             payload = msg.get_payload(decode=True).decode('utf-8')
             nums = re.findall(r' \d+', payload)
